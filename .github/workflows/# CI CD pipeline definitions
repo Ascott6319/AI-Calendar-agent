@@ -1,0 +1,68 @@
+
+## CI/CD Pipeline Configuration
+
+### GitHub Actions Workflows
+
+**1. Testing Workflow** (`.github/workflows/test.yml`):
+```yaml
+name: Run Tests and Quality Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/testing.txt
+
+    - name: Run linting with ruff
+      run: |
+        ruff check src/ tests/
+
+    - name: Run type checking with mypy
+      run: |
+        mypy src/
+
+    - name: Run security scan with bandit
+      run: |
+        bandit -r src/ -f json -o bandit-report.json
+
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ --cov=src/ --cov-report=xml --cov-report=html
+      env:
+        # Test environment variables
+        TEST_MODE: true
+        LOG_LEVEL: DEBUG
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
